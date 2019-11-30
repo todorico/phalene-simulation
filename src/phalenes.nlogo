@@ -3,7 +3,7 @@ breed[birds bird]
 breed[arbres arbre]
 
 patches-own[croissance cpt-crois pheromone]
-phalenes-own[ctask lover state cpt-state male?]
+phalenes-own[ctask lover? cpt-state male?]
 birds-own[ctask cpt-state energy]
 
 ; tree, tree pine, flower, factory, plant, bird side egg, bug, pentagon, boat top, butterfly
@@ -21,21 +21,45 @@ to setup
   [
     setxy random-xcor random-ycor
     set size 4
-    set color white
-    set lover nobody
-    set shape "egg"
-    set state "egg"
-    set ctask "phalene-egg"
+    set lover? false
+    set shape "butterfly"
     set cpt-state rand-min-max time-egg-min time-egg-max
 
-    ifelse random-float 1 < %-male
-    [
+    ifelse random-float 1 < %-male [
       set color blue
       set male? true
+      ifelse all-states? [
+        set cpt-state rand-min-max time-caterpillar-min time-caterpillar-max
+        set shape "egg"
+        set ctask "phalene-egg"
+      ][
+        set shape "butterfly"
+        set ctask "phalene-male-search-female"
+      ]
     ][
       set color pink
       set male? false
+      ifelse all-states? [
+        set cpt-state rand-min-max time-caterpillar-min time-caterpillar-max
+        set shape "egg"
+        set ctask "phalene-egg"
+      ][
+        set shape "butterfly"
+        set ctask "phalene-female-search-tree"
+      ]
     ]
+
+    ;; TODO : C'est ici pour la couleur !
+    ;; color range 0 to 9.9 (black to white)
+    set color random-float 10 ;; 10 exclu
+    set color 8 - random-float 2 ;; fait un range de 8 à 10 exclu
+
+    ; TODO (en faisant simple) :
+    ; L'enfant peut prendre la couleur moyenne des parents + ou - une varition de -2 à 2
+    ; Les oiseaux s'attaquent UNIQUEMENT aux papillons visibles
+    ; Papillons visibles = ceux pas sur un arbre
+    ;                    = ceux sur un arbre mais couleurs différente de minimum 2
+
   ]
 
   create-birds nb-birds
@@ -65,7 +89,7 @@ to go
 
   ask patches [colorate]
 
-  ask phalenes[phalene-evolve run ctask]
+  ask phalenes[run ctask set cpt-state cpt-state - 1]
   ask birds[run ctask]
 
   ask patches [evaporate]
@@ -85,17 +109,6 @@ to wiggle
   fd 1
 end
 
-to keep-vital-space
-  let p min-one-of other breed in-radius birds-vital-space [distance myself]
-  if p != nobody [
-    let temp heading
-    rt random 360
-    lt random 360
-    bk birds-vital-space - distance p + 1
-    set heading temp
-  ]
-end
-
 to colorate
   set pcolor scale-color pink pheromone 1 (pheromone-max / 1.3)
 end
@@ -106,9 +119,20 @@ end
 
 ;;;;;;;;;;;;; Oiseau ;;;;;;;;;;;;;
 
+;to keep-vital-space
+;  let p min-one-of other breed in-radius birds-vital-space [distance myself]
+;  if p != nobody [
+;    let temp heading
+;    rt random 360
+;    lt random 360
+;    bk birds-vital-space - distance p + 1
+;    set heading temp
+;  ]
+;end
+
 to bird-hunt
 
-  keep-vital-space
+;  keep-vital-space
   ifelse cpt-state = 0
   [
     die
@@ -140,59 +164,34 @@ to bird-hunt
   ]
 end
 
-;;;;;;;;;;;;; Phalene Pré-Adulte ;;;;;;;;;;;;;
-
-to phalene-evolve
-  ifelse cpt-state = 0
-  [
-    ifelse state = "egg"
-    [
-      set cpt-state rand-min-max time-caterpillar-min time-caterpillar-max
-      set shape "bug"
-      set state "caterpillar"
-      set ctask "phalene-caterpillar"
-    ][
-      ifelse state = "caterpillar"
-      [
-        set cpt-state rand-min-max time-chrysalis-min time-chrysalis-max
-        set shape "boat top"
-        set state "chrysalis"
-        set ctask "phalene-chrysalis"
-      ][
-        ifelse state = "chrysalis"
-        [
-          set cpt-state rand-min-max time-butterfly-min time-butterfly-max
-          set shape "butterfly"
-          set state "butterfly"
-          ifelse male?
-          [
-            set ctask "phalene-male-search-female"
-          ][
-            set ctask "phalene-female-search-tree"
-          ]
-        ][
-         if state = "butterfly"
-         [
-            ;die
-         ]
-        ]
-      ]
-    ]
-  ][
-    set cpt-state cpt-state - 1
+to phalene-egg
+  if cpt-state = 0 [
+    set cpt-state rand-min-max time-caterpillar-min time-caterpillar-max
+    set shape "bug"
+    set ctask "phalene-caterpillar"
   ]
 end
 
-to phalene-egg
-
-end
-
 to phalene-caterpillar
+  if cpt-state = 0 [
+    set cpt-state rand-min-max time-chrysalis-min time-chrysalis-max
+    set shape "boat top"
+    set ctask "phalene-chrysalis"
+  ]
   wiggle
 end
 
 to phalene-chrysalis
-
+  if cpt-state = 0 [
+    set cpt-state rand-min-max time-butterfly-min time-butterfly-max
+    set shape "butterfly"
+    set ctask "phalene-chrysalis"
+    ifelse male?[
+      set ctask "phalene-male-search-female"
+    ][
+      set ctask "phalene-female-search-tree"
+    ]
+  ]
 end
 
 ;;;;;;;;;;;;; Phalene Adulte ;;;;;;;;;;;;;
@@ -201,14 +200,12 @@ end
 
 to phalene-female-search-tree
 
-  ifelse any? arbres-here
-  [
+  ifelse any? arbres-here [
     set ctask "phalene-female-waiting-male"
   ][
-    let a min-one-of arbres in-radius perception-phalenes [distance myself]
 
-    ifelse a != nobody
-    [
+    let a min-one-of arbres in-radius perception-phalenes [distance myself]
+    ifelse a != nobody [
       set heading towards a
       fd 1
     ][
@@ -229,30 +226,53 @@ to phalene-female-go-away
   ifelse cpt-state = 0
   [
     phalene-female-lay-eggs
-    set ctask "phalene-female-search-tree"
+    ifelse one-lover-only [
+      set cpt-state rand-min-max time-caterpillar-min time-caterpillar-max
+      set ctask "phalene-female-wiggle-to-die"
+    ][
+      set ctask "phalene-female-search-tree"
+    ]
   ][
     wiggle
   ]
 end
 
+to phalene-female-wiggle-to-die
+  if cpt-state = 0 [
+    die
+  ]
+  wiggle
+end
+
 to phalene-female-lay-eggs
-  hatch-phalenes 6
-  [
+  hatch-phalenes number-childs [ ;;TODO: On peut mettre le nombre d'enfant en random sur un range (ex : entre 3 et 8 par exemple)
     set size 4
-    set color white
-    set lover nobody
-    set shape "egg"
-    set state "egg"
-    set ctask "phalene-egg"
+    set lover? false
+    set shape "butterfly"
     set cpt-state rand-min-max time-egg-min time-egg-max
 
-    ifelse random-float 1 < %-male
-    [
+    ifelse random-float 1 < %-male [
       set color blue
       set male? true
+      ifelse all-states? [
+        set cpt-state rand-min-max time-caterpillar-min time-caterpillar-max
+        set shape "egg"
+        set ctask "phalene-egg"
+      ][
+        set shape "butterfly"
+        set ctask "phalene-male-search-female"
+      ]
     ][
       set color pink
       set male? false
+      ifelse all-states? [
+        set cpt-state rand-min-max time-caterpillar-min time-caterpillar-max
+        set shape "egg"
+        set ctask "phalene-egg"
+      ][
+        set shape "butterfly"
+        set ctask "phalene-female-search-tree"
+      ]
     ]
   ]
 end
@@ -260,7 +280,7 @@ end
 ;;;;;;;;;;;;; Male ;;;;;;;;;;;;;
 
 to-report free-female-here
-  report one-of other phalenes-here with [not male? and lover = nobody]
+  report one-of other phalenes-here with [not male? and lover? = false]
 end
 
 to-report pheromone?
@@ -274,17 +294,17 @@ to follow-pheromone
 end
 
 to phalene-male-search-female
-
   let f free-female-here
-
-  ifelse f != nobody
-  [
-    ask f [set cpt-state 20 set ctask "phalene-female-go-away"]
+  ifelse f != nobody [
+    if one-lover-only [
+      set lover? true
+      ask f [set lover? true]
+    ]
+    ask f [set cpt-state 20 set ctask "phalene-female-go-away" ]
     set cpt-state 20
     set ctask "phalene-male-go-away"
   ][
-    ifelse pheromone?
-    [
+    ifelse pheromone? [
       follow-pheromone
     ][
       wiggle
@@ -293,14 +313,12 @@ to phalene-male-search-female
 end
 
 to phalene-male-go-away
-  ifelse cpt-state = 0
-  [
+  ifelse cpt-state = 0 [
     set ctask "phalene-male-search-female"
   ][
     wiggle
   ]
 end
-
 @#$#@#$#@
 GRAPHICS-WINDOW
 503
@@ -372,7 +390,7 @@ nb-phalenes
 nb-phalenes
 0
 1000
-100.0
+108.0
 1
 1
 NIL
@@ -387,7 +405,7 @@ nb-birds
 nb-birds
 0
 100
-5.0
+0.0
 1
 1
 NIL
@@ -439,10 +457,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-125
-400
-297
-433
+42
+403
+214
+436
 %-male
 %-male
 0
@@ -713,6 +731,43 @@ birds-vital-space
 1
 NIL
 HORIZONTAL
+
+SLIDER
+213
+403
+385
+436
+number-childs
+number-childs
+0
+10
+6.0
+1
+1
+NIL
+HORIZONTAL
+
+SWITCH
+51
+702
+163
+735
+all-states?
+all-states?
+1
+1
+-1000
+
+SWITCH
+189
+702
+325
+735
+one-lover-only
+one-lover-only
+0
+1
+-1000
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -1108,7 +1163,7 @@ false
 Polygon -7500403 true true 270 75 225 30 30 225 75 270
 Polygon -7500403 true true 30 75 75 30 270 225 225 270
 @#$#@#$#@
-NetLogo 6.0.4
+NetLogo 6.1.1
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
