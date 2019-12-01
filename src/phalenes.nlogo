@@ -1,24 +1,23 @@
 breed[phalenes phalene]
 breed[birds bird]
 breed[arbres arbre]
+breed[usines usine]
 
 patches-own[croissance cpt-crois pheromone]
-phalenes-own[ctask lover? cpt-state male?]
+phalenes-own[ctask cpt-state lover? male? lover-color]
 birds-own[ctask cpt-state energy]
 
 ; tree, tree pine, flower, factory, plant, bird side egg, bug, pentagon, boat top, butterfly
 to setup
   clear-all
 
-  ask patches
-  [
+  ask patches [
     ;set croissance 0
     ;set cpt-crois random tps-croissance-max
     ;set pcolor black
   ]
 
-  create-phalenes nb-phalenes
-  [
+  create-phalenes nb-phalenes [
     setxy random-xcor random-ycor
     set size 4
     set lover? false
@@ -26,7 +25,6 @@ to setup
     set cpt-state rand-min-max time-egg-min time-egg-max
 
     ifelse random-float 1 < %-male [
-      set color blue
       set male? true
       ifelse all-states? [
         set cpt-state rand-min-max time-caterpillar-min time-caterpillar-max
@@ -37,7 +35,6 @@ to setup
         set ctask "phalene-male-search-female"
       ]
     ][
-      set color pink
       set male? false
       ifelse all-states? [
         set cpt-state rand-min-max time-caterpillar-min time-caterpillar-max
@@ -53,32 +50,40 @@ to setup
     ;; color range 0 to 9.9 (black to white)
     set color random-float 10 ;; 10 exclu
     set color 8 - random-float 2 ;; fait un range de 8 à 10 exclu
+    set lover-color color
 
     ; TODO (en faisant simple) :
     ; L'enfant peut prendre la couleur moyenne des parents + ou - une varition de -2 à 2
     ; Les oiseaux s'attaquent UNIQUEMENT aux papillons visibles
     ; Papillons visibles = ceux pas sur un arbre
-    ;                    = ceux sur un arbre mais couleurs différente de minimum 2
+    ;                    + ceux sur un arbre mais couleurs différente de minimum 2 (ou autre valeur)
 
   ]
 
-  create-birds nb-birds
-  [
+  create-birds nb-birds [
     setxy random-xcor random-ycor
     set size 8
-    set color red
+    set color magenta
     set shape "bird side"
     set ctask "bird-hunt"
 
     set cpt-state rand-min-max time-bird-min time-bird-max
   ]
 
-  create-arbres nb-arbres
-  [
+  create-arbres nb-arbres [
     setxy random-xcor random-ycor
     set size 10
-    set color green
-    set shape "tree"
+    set shape "tree-p"
+    set color 8 - random-float 2 ;; fait un range de 8 à 10 exclu
+  ]
+
+  ;; Ainsi la fonction update arbres color n'est plus appelé à la création des usines mais à chaque tick pour modifier leur valeur (du coup prends du temps à chaque tick)
+  create-usines nb-usines-begin [
+    setxy random-xcor random-ycor
+    set size 10
+    set color red
+    set shape "factory"
+    update-arbres-color
   ]
 
   reset-ticks
@@ -115,6 +120,36 @@ end
 
 to evaporate
   set pheromone pheromone - (pheromone * %-evaporation)
+end
+
+;;;;;;;;;;;;; Usine ;;;;;;;;;;;;;
+
+to place-usine
+  if mouse-down? [
+    create-usines 1[
+      setxy mouse-xcor mouse-ycor
+      set size 10
+      set color red
+      set shape "factory"
+    ]
+    update-arbres-color
+    stop
+  ]
+end
+
+to update-arbres-color
+  ask arbres [
+    let u min-one-of usines [distance myself]
+    if u != nobody [
+      let t [distance myself] of u
+      if t < tmax [
+        ;; range 0 to 8 from 0 to tmax
+        ;; (((OldValue - OldMin) * (NewMax - NewMin)) / (OldMax - OldMin)) + NewMin
+        ;; set color ((t - 0) * (8 - 0)) / (tmax - 0) + 0
+        set color (t * 8) / tmax
+      ]
+    ]
+  ]
 end
 
 ;;;;;;;;;;;;; Oiseau ;;;;;;;;;;;;;
@@ -223,8 +258,7 @@ to phalene-female-waiting-male
 end
 
 to phalene-female-go-away
-  ifelse cpt-state = 0
-  [
+  ifelse cpt-state = 0 [
     phalene-female-lay-eggs
     ifelse one-lover-only [
       set cpt-state rand-min-max time-caterpillar-min time-caterpillar-max
@@ -245,14 +279,19 @@ to phalene-female-wiggle-to-die
 end
 
 to phalene-female-lay-eggs
-  hatch-phalenes number-childs [ ;;TODO: On peut mettre le nombre d'enfant en random sur un range (ex : entre 3 et 8 par exemple)
+  hatch number-childs [ ;;TODO: On peut mettre le nombre d'enfant en random sur un range (ex : entre 3 et 8 par exemple)
     set size 4
     set lover? false
     set shape "butterfly"
     set cpt-state rand-min-max time-egg-min time-egg-max
 
+    let colorTemp ([color] of myself + [lover-color] of myself) / 2
+    set colorTemp colorTemp - 2 + random-float 4 ;; prend la couleur de la MERE uniquement + ou - un random entre -2 et 2
+    set colorTemp min list colorTemp 9.99 ;; max 9.99 because 10 is pitch black for another color
+    set colorTemp max list colorTemp 0    ;; min 0
+    set color colorTemp
+
     ifelse random-float 1 < %-male [
-      set color blue
       set male? true
       ifelse all-states? [
         set cpt-state rand-min-max time-caterpillar-min time-caterpillar-max
@@ -263,7 +302,6 @@ to phalene-female-lay-eggs
         set ctask "phalene-male-search-female"
       ]
     ][
-      set color pink
       set male? false
       ifelse all-states? [
         set cpt-state rand-min-max time-caterpillar-min time-caterpillar-max
@@ -300,7 +338,11 @@ to phalene-male-search-female
       set lover? true
       ask f [set lover? true]
     ]
-    ask f [set cpt-state 20 set ctask "phalene-female-go-away" ]
+    ask f [
+      set cpt-state 20
+      set ctask "phalene-female-go-away"
+      set lover-color [color] of myself
+    ]
     set cpt-state 20
     set ctask "phalene-male-go-away"
   ][
@@ -390,7 +432,7 @@ nb-phalenes
 nb-phalenes
 0
 1000
-108.0
+57.0
 1
 1
 NIL
@@ -405,7 +447,7 @@ nb-birds
 nb-birds
 0
 100
-0.0
+4.0
 1
 1
 NIL
@@ -754,7 +796,7 @@ SWITCH
 735
 all-states?
 all-states?
-1
+0
 1
 -1000
 
@@ -768,6 +810,89 @@ one-lover-only
 0
 1
 -1000
+
+BUTTON
+364
+699
+535
+732
+Click to place one factory
+place-usine
+T
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
+
+SLIDER
+365
+735
+537
+768
+nb-usines-begin
+nb-usines-begin
+0
+10
+1.0
+1
+1
+NIL
+HORIZONTAL
+
+PLOT
+566
+633
+766
+783
+phalenes-color
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"Couleur" 1.0 0 -2674135 true "" "plot mean [color] of phalenes"
+
+PLOT
+777
+633
+977
+783
+tree-color
+NIL
+NIL
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -2674135 true "" "plot mean [color] of arbres"
+
+SLIDER
+991
+641
+1163
+674
+tmax
+tmax
+0
+500
+150.0
+1
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -1100,6 +1225,15 @@ Circle -7500403 true true 65 21 108
 Circle -7500403 true true 116 41 127
 Circle -7500403 true true 45 90 120
 Circle -7500403 true true 104 74 152
+
+tree-p
+false
+3
+Circle -10899396 true false 118 3 94
+Rectangle -6459832 true true 120 150 180 300
+Circle -10899396 true false 65 21 108
+Circle -10899396 true false 45 60 120
+Circle -10899396 true false 104 44 152
 
 triangle
 false
