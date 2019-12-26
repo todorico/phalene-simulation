@@ -48,9 +48,10 @@ to setup
 
     ;; TODO : C'est ici pour la couleur !
     ;; color range 0 to 9.9 (black to white)
-    set color random-float 10 ;; 10 exclu
-    set color 8 - random-float 2 ;; fait un range de 8 à 10 exclu
-    set lover-color color
+    ;set color approximate-rgb (random 256) (random 256) (random 256);random-float 10 ;; 10 exclu
+
+    ;set color 8 - random-float 2 ;; fait un range de 8 à 10 exclu
+    ;set lover-color color
 
     ; TODO (en faisant simple) :
     ; L'enfant peut prendre la couleur moyenne des parents + ou - une varition de -2 à 2
@@ -507,7 +508,7 @@ SLIDER
 %-male
 0
 1
-0.5
+0.49
 0.01
 1
 NIL
@@ -552,7 +553,7 @@ perception-birds
 perception-birds
 0
 100
-13.0
+33.0
 1
 1
 NIL
@@ -582,7 +583,7 @@ pheromone-max
 pheromone-max
 0
 100
-43.0
+100.0
 1
 1
 NIL
@@ -633,7 +634,7 @@ SLIDER
 %-evaporation
 0
 1
-0.1
+0.02
 0.01
 1
 NIL
@@ -738,7 +739,7 @@ time-bird-min
 time-bird-min
 0
 1000
-197.0
+193.0
 1
 1
 NIL
@@ -783,7 +784,7 @@ number-childs
 number-childs
 0
 10
-6.0
+0.0
 1
 1
 NIL
@@ -796,7 +797,7 @@ SWITCH
 735
 all-states?
 all-states?
-0
+1
 1
 -1000
 
@@ -1297,7 +1298,7 @@ false
 Polygon -7500403 true true 270 75 225 30 30 225 75 270
 Polygon -7500403 true true 30 75 75 30 270 225 225 270
 @#$#@#$#@
-NetLogo 6.1.1
+NetLogo 6.0.4
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
